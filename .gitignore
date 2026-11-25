@@ -1,0 +1,13 @@
+node_modules/
+openpathcode-app/
+openpathcode-app.bak.*
+*.log
+logs/
+.env
+.env.*
+*.key
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
