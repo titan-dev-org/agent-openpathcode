@@ -23,16 +23,13 @@ export class MCPManager {
           stderr: 'pipe',
           env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
         });
-
         if (transport.stderr) {
           const logStream = fs.createWriteStream(logPath, { flags: 'a' });
           transport.stderr.on('data', (chunk) => { try { logStream.write(chunk); } catch {} });
         }
-
-        const client = new Client({ name: 'openpathcode', version: '2.1.0' }, { capabilities: {} });
+        const client = new Client({ name: 'openpathcode', version: '2.2.0' }, { capabilities: {} });
         await client.connect(transport);
         this.clients.set(s.name, client);
-
         const { tools } = await client.listTools();
         for (const t of tools) {
           this.tools.push({
