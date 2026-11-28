@@ -1,6 +1,7 @@
 import { getDB } from '../db/database.js';
 import readline from 'readline';
 import { theme } from '../ui/theme.js';
+import { pauseBus, resumeBus } from '../ui/readlineBus.js';
 
 const DEFAULT = {
   read_file: 'allow', list_files: 'allow',
@@ -27,20 +28,31 @@ export async function askPermission(action, details) {
     console.log('  ' + theme.error('✗ ') + theme.error(`"${action}" diblokir oleh policy`));
     return false;
   }
+
+  pauseBus();
+  console.log('');
+  console.log('  ' + theme.warning('🔒 Permission required'));
+  console.log('  ' + theme.muted('action: ') + theme.white(action));
+  console.log('  ' + theme.muted('detail: ') + theme.dim(details));
+  const answer = await promptOnce('  ' + theme.primary('Allow? (y/n/always): '));
+  resumeBus();
+
+  const a = (answer || '').trim().toLowerCase();
+  if (a === 'a' || a === 'always') {
+    setPolicy(action, 'allow');
+    console.log('  ' + theme.success('✓ ') + theme.muted(`policy "${action}" = allow`));
+    return true;
+  }
+  return a === 'y' || a === 'yes';
+}
+
+function promptOnce(q) {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    console.log('');
-    console.log('  ' + theme.warning('🔒 Permission required'));
-    console.log('  ' + theme.muted('action: ') + theme.white(action));
-    console.log('  ' + theme.muted('detail: ') + theme.dim(details));
-    rl.question('  ' + theme.primary('Allow? (y/n/always): '), (ans) => {
-      rl.close();
-      const a = ans.trim().toLowerCase();
-      if (a === 'a' || a === 'always') {
-        setPolicy(action, 'allow');
-        console.log('  ' + theme.success('✓ ') + theme.muted(`policy "${action}" = allow`));
-        resolve(true);
-      } else resolve(a === 'y' || a === 'yes');
-    });
+    if (process.stdin.isPaused()) process.stdin.resume();
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; try { rl.close(); } catch {} resolve(v); };
+    rl.question(q, (ans) => finish(ans));
+    setTimeout(() => finish(''), 5 * 60 * 1000);
   });
 }
