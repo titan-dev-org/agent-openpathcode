@@ -8,7 +8,7 @@ const ACTIONS = ['read_file', 'write_file', 'edit_file', 'list_files', 'run_comm
 export async function cmdPermissions(args = []) {
   if (args.length >= 2) {
     const [a, r] = args;
-    if (!['allow','ask','deny'].includes(r)) return log.error('Rule: allow | ask | deny');
+    if (!['allow', 'ask', 'deny'].includes(r)) return log.error('Rule: allow | ask | deny');
     setPolicy(a, r);
     return log.success(`Policy "${a}" = ${r}`);
   }
