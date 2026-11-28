@@ -14,13 +14,15 @@ export async function cmdModels(args = [], tui) {
   }
   const uMap = {};
   for (const u of usage.aggregate()) uMap[`${u.provider}__${u.model}`] = u;
-  const t = makeTable(['ID','Provider','Model','Tok In','Tok Out','Status']);
+  const t = makeTable(['ID', 'Provider', 'Model', 'Tok In', 'Tok Out', 'Status']);
   for (const p of list) {
     const u = uMap[`${p.name}__${p.model}`];
-    t.push([p.id, theme.white(p.name), theme.white(p.model),
+    t.push([
+      p.id, theme.white(p.name), theme.white(p.model),
       u ? theme.muted(String(u.total_in)) : theme.dim('—'),
       u ? theme.muted(String(u.total_out)) : theme.dim('—'),
-      tui.currentModel === p.model ? theme.success('● active') : theme.muted('○ ready')]);
+      tui.currentModel === p.model ? theme.success('● active') : theme.muted('○ ready'),
+    ]);
   }
   console.log(t.toString());
   const ans = await tui.ask(theme.primary('  Pilih ID (kosong=batal): '));
