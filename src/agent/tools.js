@@ -7,27 +7,40 @@ import { askPermission } from '../permissions/policy.js';
 import { snapshotFile } from '../undo/snapshot.js';
 import { theme } from '../ui/theme.js';
 import { gitPush } from '../git/gitPush.js';
+import { pauseBus, resumeBus } from '../ui/readlineBus.js';
 
 export const TOOL_SCHEMAS = [
   { type:'function', function:{ name:'list_files', description:'List files in project', parameters:{ type:'object', properties:{ project:{type:'string'}, subfolder:{type:'string'} }, required:['project'] } } },
   { type:'function', function:{ name:'read_file', description:'Read file', parameters:{ type:'object', properties:{ project:{type:'string'}, path:{type:'string'} }, required:['project','path'] } } },
-  { type:'function', function:{ name:'write_file', description:'Write/create file', parameters:{ type:'object', properties:{ project:{type:'string'}, path:{type:'string'}, content:{type:'string'} }, required:['project','path','content'] } } },
+  { type:'function', function:{ name:'write_file', description:'Write/create file. Creates project folder if needed.', parameters:{ type:'object', properties:{ project:{type:'string'}, path:{type:'string'}, content:{type:'string'} }, required:['project','path','content'] } } },
   { type:'function', function:{ name:'edit_file', description:'Replace snippet', parameters:{ type:'object', properties:{ project:{type:'string'}, path:{type:'string'}, find:{type:'string'}, replace:{type:'string'} }, required:['project','path','find','replace'] } } },
   { type:'function', function:{ name:'run_command', description:'Run shell command', parameters:{ type:'object', properties:{ project:{type:'string'}, command:{type:'string'} }, required:['project','command'] } } },
   { type:'function', function:{ name:'git_push', description:'Push project to GitHub', parameters:{ type:'object', properties:{ project:{type:'string'}, repo_url:{type:'string'}, branch:{type:'string'} }, required:['project','repo_url'] } } },
 ];
 
 export async function executeTool(name, args) {
-  const pd = safeResolve(PROJECTS_DIR, args.project);
+  let pd;
+  try {
+    pd = safeResolve(PROJECTS_DIR, args.project);
+  } catch (e) {
+    return { error: `Invalid project "${args.project}". Project harus nama folder di openpathcode-app/projects/.` };
+  }
+
+  if (name === 'write_file') {
+    if (!fs.existsSync(pd)) fs.mkdirSync(pd, { recursive: true });
+  } else if (!fs.existsSync(pd)) {
+    return { error: `Project "${args.project}" tidak ditemukan. Project tersedia: ${listProjectNames()}. Gunakan write_file untuk membuat baru.` };
+  }
+
   switch (name) {
     case 'list_files': {
       const base = args.subfolder ? safeResolve(pd, args.subfolder) : pd;
-      if (!fs.existsSync(base)) return { error: 'folder not found' };
+      if (!fs.existsSync(base)) return { error: 'folder not found: ' + (args.subfolder || '/') };
       return { files: walk(base, base) };
     }
     case 'read_file': {
       const p = safeResolve(pd, args.path);
-      if (!fs.existsSync(p)) return { error: 'file not found' };
+      if (!fs.existsSync(p)) return { error: 'file not found: ' + args.path };
       return { content: fs.readFileSync(p, 'utf8') };
     }
     case 'write_file': {
@@ -39,9 +52,9 @@ export async function executeTool(name, args) {
     }
     case 'edit_file': {
       const p = safeResolve(pd, args.path);
-      if (!fs.existsSync(p)) return { error: 'file not found' };
+      if (!fs.existsSync(p)) return { error: 'file not found: ' + args.path };
       const src = fs.readFileSync(p, 'utf8');
-      if (!src.includes(args.find)) return { error: 'find text not found' };
+      if (!src.includes(args.find)) return { error: 'find text not found in ' + args.path };
       snapshotFile(p);
       fs.writeFileSync(p, src.replace(args.find, args.replace), 'utf8');
       return { success: true };
@@ -63,11 +76,17 @@ export async function executeTool(name, args) {
   }
 }
 
+function listProjectNames() {
+  try { return fs.readdirSync(PROJECTS_DIR).join(', ') || '(kosong)'; }
+  catch { return '(tidak bisa dibaca)'; }
+}
+
 function walk(root, dir, prefix = '') {
   const out = [];
   for (const e of fs.readdirSync(dir)) {
     if (e === '.git' || e === 'node_modules') continue;
-    const full = path.join(dir, e), rel = path.join(prefix, e).replace(/\\/g,'/');
+    const full = path.join(dir, e);
+    const rel = path.join(prefix, e).replace(/\\/g, '/');
     if (fs.statSync(full).isDirectory()) { out.push(rel + '/'); out.push(...walk(root, full, rel)); }
     else out.push(rel);
   }
@@ -75,9 +94,21 @@ function walk(root, dir, prefix = '') {
 }
 
 async function askToken() {
+  pauseBus();
+  console.log('');
+  console.log('  ' + theme.warning('🔑 GitHub Token (repo scope)'));
+  const tok = await promptOnce('  ' + theme.primary('Token: '));
+  resumeBus();
+  return (tok || '').trim();
+}
+
+function promptOnce(q) {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    console.log(theme.warning('\n🔑 GitHub Token (repo scope):'));
-    rl.question(theme.primary('   Token: '), (t) => { rl.close(); resolve(t.trim()); });
+    if (process.stdin.isPaused()) process.stdin.resume();
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; try { rl.close(); } catch {} resolve(v); };
+    rl.question(q, (ans) => finish(ans));
+    setTimeout(() => finish(''), 5 * 60 * 1000);
   });
 }
