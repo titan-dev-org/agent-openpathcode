@@ -62,8 +62,23 @@ export async function executeTool(name, args) {
     case 'run_command': {
       const ok = await askPermission('run_command', args.command);
       if (!ok) return { error: 'permission denied' };
-      try { return { output: execSync(args.command, { cwd: pd, encoding: 'utf8', timeout: 60000, stdio: 'pipe' }) }; }
-      catch (e) { return { error: e.message, stderr: e.stderr?.toString() }; }
+      try {
+        return {
+          output: execSync(args.command, {
+            cwd: pd,
+            encoding: 'utf8',
+            timeout: 300000,   // ← 5 menit, cukup untuk npm install
+            stdio: 'pipe',
+            maxBuffer: 20 * 1024 * 1024,  // ← 20 MB buffer untuk output besar
+          }),
+        };
+      } catch (e) {
+        return {
+          error: e.message,
+          stderr: e.stderr?.toString(),
+          timedOut: e.killed === true,
+        };
+      }
     }
     case 'git_push': {
       const ok = await askPermission('git_push', `push ${args.project} → ${args.repo_url}`);
