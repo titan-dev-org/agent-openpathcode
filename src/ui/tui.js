@@ -29,6 +29,7 @@ export class TUI {
     this._paused = false;
     this._exiting = false;
     this._rebuilding = false;
+    this._busy = false;          // ← KUNCI: cegah input ganda
   }
 
   clearScreen() { process.stdout.write('\x1B[2J\x1B[3J\x1B[H'); }
@@ -95,6 +96,13 @@ export class TUI {
 
   async _handleLine(input) {
     const line = input.trim();
+
+    // ===== KUNCI: kalau sedang sibuk, abaikan input =====
+    if (this._busy) {
+      // Jangan prompt; user sedang menunggu AI
+      return;
+    }
+
     if (line === 'exit' || line === 'quit') {
       this._exiting = true;
       await this.plugins.emit('onExit', { tui: this });
@@ -104,9 +112,14 @@ export class TUI {
     if (!line) { if (!this._paused) this.rl.prompt(); return; }
 
     if (line.startsWith('/')) {
-      try { this._paused = true; await handleCommand(line, this); }
+      // Command juga harus busy-guarded
+      this._busy = true;
+      this._paused = true;
+      this.rl.pause();
+      try { await handleCommand(line, this); }
       catch (e) { console.log('  ' + theme.error('│ ') + theme.error(e.message)); }
-      finally { this._paused = false; }
+      finally { this._paused = false; this._busy = false; }
+      if (!this._exiting) this.rl.resume();
       if (!this._exiting) this.rl.prompt();
       return;
     }
@@ -117,9 +130,19 @@ export class TUI {
       return this.rl.prompt();
     }
 
+    // ===== BLOKIR INPUT SELAMA AI PROSES =====
+    this._busy = true;
+    this._paused = true;
+    this.rl.pause();
+
     try { await this.runAgent(line); }
     catch (e) { console.log('  ' + theme.error('│ ') + theme.error(e.message)); }
-    if (!this._exiting) this.rl.prompt();
+    finally { this._paused = false; this._busy = false; }
+
+    if (!this._exiting) {
+      this.rl.resume();
+      this.rl.prompt();
+    }
   }
 
   async runAgent(userInput) {
