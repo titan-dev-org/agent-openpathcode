@@ -1,7 +1,6 @@
 import { getDB } from '../db/database.js';
 import readline from 'readline';
 import { theme } from '../ui/theme.js';
-import { pauseBus, resumeBus } from '../ui/readlineBus.js';
 
 const DEFAULT = {
   read_file: 'allow', list_files: 'allow',
@@ -29,14 +28,12 @@ export async function askPermission(action, details) {
     return false;
   }
 
-  pauseBus();
   console.log('');
   console.log('  ' + theme.warning('🔒 Permission required'));
   console.log('  ' + theme.muted('action: ') + theme.white(action));
   console.log('  ' + theme.muted('detail: ') + theme.dim(details));
 
-  const answer = await promptOnce('  ' + theme.primary('Allow? (y/n/always): '));
-  resumeBus();
+  const answer = await readAnswer('  ' + theme.primary('Allow? (y/n/always): '));
 
   const a = (answer || '').trim().toLowerCase();
   if (a === 'a' || a === 'always') {
@@ -47,13 +44,33 @@ export async function askPermission(action, details) {
   return a === 'y' || a === 'yes';
 }
 
-function promptOnce(q) {
+/**
+ * Baca satu baris dari stdin.
+ * KUNCI: resume stdin dulu, buat readline, tanya, close, pause lagi.
+ * Ini memastikan readline TUI (yang sedang pause) tidak ikut menangkap input.
+ */
+function readAnswer(question) {
   return new Promise((resolve) => {
-    if (process.stdin.isPaused()) process.stdin.resume();
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+    // Resume stdin supaya bisa baca input
+    process.stdin.resume();
+
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: false,
+    });
+
     let done = false;
-    const finish = (v) => { if (done) return; done = true; try { rl.close(); } catch {} resolve(v); };
-    rl.question(q, (ans) => finish(ans));
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      try { rl.close(); } catch {}
+      // Setelah selesai, pause lagi — jangan biarkan input masuk
+      process.stdin.pause();
+      resolve(v);
+    };
+
+    rl.question(question, (ans) => finish(ans));
     setTimeout(() => finish(''), 5 * 60 * 1000);
   });
 }
