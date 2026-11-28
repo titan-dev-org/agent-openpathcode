@@ -13,9 +13,11 @@ export const COMMANDS_DIR = path.join(WORKSPACE_ROOT, 'commands');
 export const SNAPSHOTS_DIR = path.join(WORKSPACE_ROOT, 'snapshots');
 
 export async function ensureWorkspace() {
-  const all = [WORKSPACE_ROOT, PROJECTS_DIR, DB_DIR, SESSIONS_DIR, LOGS_DIR,
+  const all = [
+    WORKSPACE_ROOT, PROJECTS_DIR, DB_DIR, SESSIONS_DIR, LOGS_DIR,
     PLUGINS_DIR, AGENTS_DIR, SKILLS_DIR, COMMANDS_DIR, SNAPSHOTS_DIR,
-    path.join(SNAPSHOTS_DIR, 'files')];
+    path.join(SNAPSHOTS_DIR, 'files'),
+  ];
   for (const d of all) if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 }
 
