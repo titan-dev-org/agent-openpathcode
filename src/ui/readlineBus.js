@@ -12,6 +12,5 @@ export function pauseBus() {
 export function resumeBus() {
   if (rl && typeof rl.resume === 'function') {
     try { rl.resume(); } catch {}
-    try { rl.prompt(true); } catch {}
   }
 }
