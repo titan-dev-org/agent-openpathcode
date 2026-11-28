@@ -14,7 +14,6 @@ export class PluginManager {
         const mod = await import(pathToFileURL(path.join(PLUGINS_DIR, f)).href);
         const p = mod.default;
         if (p?.name && p?.hooks) this.plugins.push(p);
-        else console.log('  ' + theme.warning('⚠ plugin ') + f + ' tidak valid');
       } catch (e) {
         console.log('  ' + theme.error('✗ plugin ') + f + ': ' + e.message);
       }
