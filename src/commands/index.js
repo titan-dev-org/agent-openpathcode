@@ -6,6 +6,7 @@ import { cmdRemove } from './remove.js';
 import { cmdHelp } from './help.js';
 import { cmdUsage } from './usage.js';
 import { cmdPermissions } from './permissions.js';
+import { cmdSettings } from './settings.js';
 import { undo, redo } from '../undo/snapshot.js';
 import { log } from '../utils/logger.js';
 import { theme } from '../ui/theme.js';
@@ -24,6 +25,7 @@ export async function handleCommand(line, tui) {
     case 'sessions':    return cmdSessions(args, tui);
     case 'usage':       return cmdUsage();
     case 'permissions': return cmdPermissions(args);
+    case 'settings':    return cmdSettings(args, tui);
     case 'new':         tui.resetSession(); console.log('  ' + theme.success('✓ ') + 'new session'); return;
     case 'clear':       tui.clearScreen(); return;
     case 'undo':        { const r = undo(); return r.ok ? log.success(r.msg) : log.warn(r.msg); }
@@ -86,12 +88,9 @@ function runAgents(tui, args) {
 async function runParallel(tui, args) {
   if (args.length < 1) return log.warn('Usage: /parallel "prompt1" "prompt2" ...');
   if (!tui.currentModel) return log.warn('Pilih model dulu');
-  const tasks = args;
-  log.info(`Menjalankan ${tasks.length} task paralel…`);
+  log.info(`Menjalankan ${args.length} task paralel…`);
   const ms = new MultiSession();
-  const results = await ms.spawnParallel(tasks, {
-    provider: tui.provider, model: tui.currentModel,
-  });
+  const results = await ms.spawnParallel(args, { provider: tui.provider, model: tui.currentModel });
   for (const r of results) {
     console.log('');
     console.log('  ' + theme.primary.bold(`◆ Result: ${r.prompt.slice(0, 50)}`));
