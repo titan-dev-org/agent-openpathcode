@@ -29,7 +29,7 @@ export class TUI {
     this._paused = false;
     this._exiting = false;
     this._rebuilding = false;
-    this._busy = false;          // ← KUNCI: cegah input ganda
+    this._busy = false;
   }
 
   clearScreen() { process.stdout.write('\x1B[2J\x1B[3J\x1B[H'); }
@@ -95,13 +95,12 @@ export class TUI {
   }
 
   async _handleLine(input) {
-    const line = input.trim();
-
-    // ===== KUNCI: kalau sedang sibuk, abaikan input =====
+    // ===== KUNCI: kalau busy, input diabaikan TOTAL =====
     if (this._busy) {
-      // Jangan prompt; user sedang menunggu AI
       return;
     }
+
+    const line = input.trim();
 
     if (line === 'exit' || line === 'quit') {
       this._exiting = true;
@@ -112,15 +111,18 @@ export class TUI {
     if (!line) { if (!this._paused) this.rl.prompt(); return; }
 
     if (line.startsWith('/')) {
-      // Command juga harus busy-guarded
       this._busy = true;
       this._paused = true;
       this.rl.pause();
+      process.stdin.pause();       // ← pause stdin TOTAL
       try { await handleCommand(line, this); }
       catch (e) { console.log('  ' + theme.error('│ ') + theme.error(e.message)); }
       finally { this._paused = false; this._busy = false; }
-      if (!this._exiting) this.rl.resume();
-      if (!this._exiting) this.rl.prompt();
+      if (!this._exiting) {
+        process.stdin.resume();    // ← resume stdin
+        this.rl.resume();
+        this.rl.prompt();
+      }
       return;
     }
 
@@ -130,16 +132,18 @@ export class TUI {
       return this.rl.prompt();
     }
 
-    // ===== BLOKIR INPUT SELAMA AI PROSES =====
+    // ===== BLOKIR TOTAL: pause stdin, bukan hanya rl =====
     this._busy = true;
     this._paused = true;
     this.rl.pause();
+    process.stdin.pause();
 
     try { await this.runAgent(line); }
     catch (e) { console.log('  ' + theme.error('│ ') + theme.error(e.message)); }
     finally { this._paused = false; this._busy = false; }
 
     if (!this._exiting) {
+      process.stdin.resume();
       this.rl.resume();
       this.rl.prompt();
     }
