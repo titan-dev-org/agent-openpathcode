@@ -7,7 +7,6 @@ import { askPermission } from '../permissions/policy.js';
 import { snapshotFile } from '../undo/snapshot.js';
 import { theme } from '../ui/theme.js';
 import { gitPush } from '../git/gitPush.js';
-import { pauseBus, resumeBus } from '../ui/readlineBus.js';
 
 export const TOOL_SCHEMAS = [
   { type:'function', function:{ name:'list_files', description:'List files in project', parameters:{ type:'object', properties:{ project:{type:'string'}, subfolder:{type:'string'} }, required:['project'] } } },
@@ -67,9 +66,9 @@ export async function executeTool(name, args) {
           output: execSync(args.command, {
             cwd: pd,
             encoding: 'utf8',
-            timeout: 300000,   // ← 5 menit, cukup untuk npm install
+            timeout: 300000,
             stdio: 'pipe',
-            maxBuffer: 20 * 1024 * 1024,  // ← 20 MB buffer untuk output besar
+            maxBuffer: 20 * 1024 * 1024,
           }),
         };
       } catch (e) {
@@ -109,21 +108,25 @@ function walk(root, dir, prefix = '') {
 }
 
 async function askToken() {
-  pauseBus();
   console.log('');
   console.log('  ' + theme.warning('🔑 GitHub Token (repo scope)'));
-  const tok = await promptOnce('  ' + theme.primary('Token: '));
-  resumeBus();
+  const tok = await readAnswer('  ' + theme.primary('Token: '));
   return (tok || '').trim();
 }
 
-function promptOnce(q) {
+function readAnswer(question) {
   return new Promise((resolve) => {
-    if (process.stdin.isPaused()) process.stdin.resume();
+    process.stdin.resume();
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
     let done = false;
-    const finish = (v) => { if (done) return; done = true; try { rl.close(); } catch {} resolve(v); };
-    rl.question(q, (ans) => finish(ans));
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      try { rl.close(); } catch {}
+      process.stdin.pause();
+      resolve(v);
+    };
+    rl.question(question, (ans) => finish(ans));
     setTimeout(() => finish(''), 5 * 60 * 1000);
   });
 }
