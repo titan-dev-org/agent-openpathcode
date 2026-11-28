@@ -34,6 +34,7 @@ export async function askPermission(action, details) {
   console.log('  ' + theme.warning('🔒 Permission required'));
   console.log('  ' + theme.muted('action: ') + theme.white(action));
   console.log('  ' + theme.muted('detail: ') + theme.dim(details));
+
   const answer = await promptOnce('  ' + theme.primary('Allow? (y/n/always): '));
   resumeBus();
 
